@@ -169,7 +169,12 @@ define([
             this.userGroups = []; // for filtering comments
 
             this.view = this.createView('Common.Views.Comments', { store: this.collection });
-            this.view.render();
+            // PKT-0112: in the document editor the panel build (template, buttons, menus, scrollers) waits until
+            // after document load or its first use; elsewhere it is built here as before.
+            if (window.DE && this.appPrefix === 'de-')
+                this.deferViewRender();
+            else
+                this.view.render();
 
             this.userCollection = this.getApplication().getCollection('Common.Collections.Users');
             this.userCollection.on('reset', _.bind(this.onUpdateUsers, this));
@@ -177,6 +182,38 @@ define([
             Common.NotificationCenter.on('mentions:setusers', this.avatarsUpdate.bind(this));
 
             this.bindViewEvents(this.view, this.events);
+        },
+        // PKT-0112: until the view is built, its layout methods and the members render() creates build it on
+        // first touch, so sdk comment callbacks that arrive during load are applied as before. changeLayout
+        // (setMode, called from onEditorPermissions before the document loads) only records the mode; the
+        // build applies the last one.
+        deferViewRender: function () {
+            var view = this.view, proto = Object.getPrototypeOf(view), slots = {}, done = false,
+                pendingMode = null,
+                methods = ['render', 'update', 'updateScrolls', 'updateLayout', 'showEditContainer',
+                           'saveText', 'loadText', 'setupLayout', 'hookTextBox', 'autoHeightTextBox'],
+                members = ['commentsView', 'txtComment', 'layout', 'buttonAddNew', 'buttonSort', 'buttonClose',
+                           'buttonAdd', 'buttonCancel', 'buttonAddCommentToDoc', 'scrollerNewCommet'];
+            var ensure = function () {
+                if (done) return;
+                done = true;
+                methods.forEach(function (m) { delete view[m]; });
+                delete view.changeLayout;
+                members.forEach(function (m) { delete view[m]; if (slots[m] !== undefined) view[m] = slots[m]; });
+                view.render();
+                pendingMode && view.changeLayout(pendingMode);
+            };
+            view.changeLayout = function (mode) { view.mode = pendingMode = mode; };
+            methods.forEach(function (m) {
+                view[m] = function () { ensure(); return proto[m].apply(view, arguments); };
+            });
+            members.forEach(function (m) {
+                Object.defineProperty(view, m, { configurable: true, enumerable: true,
+                    get: function () { ensure(); return view[m]; },
+                    set: function (v) { slots[m] = v; } });
+            });
+            this.ensureViewRendered = ensure;
+            Common.NotificationCenter.on('app:ready', function () { setTimeout(ensure, 0); });
         },
         setConfig: function (data, api) {
             this.setApi(api);
