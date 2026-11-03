@@ -2129,6 +2129,25 @@ define([
                 return this;
             },
 
+            // PKT-0111: render the deferred components of one panel (tab), or of every panel (no argument).
+            // Called on first activation (setTab), and for all panels from onAppReady/createDelayedElements, which
+            // touch their DOM (cmpEl, hints).
+            renderDeferredPanels: function (tab) {
+                var deferred = this._deferredInjects;
+                if (!deferred) return;
+                _.each(tab ? [tab] : _.keys(deferred), function (t) {
+                    var items = deferred[t];
+                    if (!items) return;
+                    delete deferred[t];
+                    items.forEach(function (it) { Common.Utils.injectComponent(it[0], it[1]); });
+                });
+            },
+
+            setTab: function (tab) {
+                tab && this.renderDeferredPanels(tab);
+                return Common.UI.Mixtbar.prototype.setTab.apply(this, arguments);
+            },
+
             onTabClick: function (e) {
                 var me = this,
                     tab = $(e.currentTarget).find('> a[data-tab]').data('tab'),
@@ -2171,9 +2190,21 @@ define([
             },
 
             rendererComponents: function (html) {
-                var $host = $(html);
+                var $host = $(html),
+                    deferred = this._deferredInjects = {},
+                    // render:after (onToolbarAfterRender) builds their pickers only when they are rendered
+                    eager = [this.btnContentControls, this.btnPageColor];
+                // PKT-0111: components whose slot is in a panel other than Home are rendered into it the first time
+                // that panel is needed (renderDeferredPanels), not before asc_LoadDocument. The objects exist already,
+                // so the controller binds and locks them as before (Button keeps its disabled state until render).
                 var _injectComponent = function (id, cmp) {
-                    Common.Utils.injectComponent($host.findById(id), cmp);
+                    var $slot = $host.findById(id);
+                    if (!cmp || !$slot.length) return;
+                    var tab = $slot.closest('.panel[data-tab]').attr('data-tab');
+                    if (tab && tab !== 'home' && eager.indexOf(cmp) < 0) {
+                        (deferred[tab] || (deferred[tab] = [])).push([$slot, cmp]);
+                    } else
+                        Common.Utils.injectComponent($slot, cmp);
                 };
 
                 _injectComponent('#slot-btn-text-from-file', this.btnTextFromFile);
@@ -2268,6 +2299,7 @@ define([
 
             onAppReady: function (config) {
                 var me = this;
+                me.renderDeferredPanels();
                 me._isDocReady = true;
                 if (me.cmbFontSize) {
                     var lang = config.lang ? config.lang.toLowerCase() : 'en',
@@ -2676,6 +2708,7 @@ define([
             },
 
             createDelayedElements: function () {
+                this.renderDeferredPanels();
                 if (this.api) {
                     this.mnuNonPrinting.items[0].setChecked(this.api.get_ShowParaMarks(), true);
                     this.mnuNonPrinting.items[1].setChecked(this.api.get_ShowTableEmptyLine(), true);
