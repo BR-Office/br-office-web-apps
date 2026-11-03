@@ -4083,10 +4083,15 @@ define([
                                                                 Common.enumLock.previewReviewMode, Common.enumLock.viewFormMode, Common.enumLock.docLockView, Common.enumLock.docLockForms, Common.enumLock.viewMode ];
                             btnsComment[0] && btnsComment[0].keepState && (view.buttonAddNew.keepState = btnsComment[0].keepState.slice());
                             btnsComment.add(view.buttonAddNew);
-                        };
+                            if (late) { // PKT-0132: arrays were filled at app:ready without it
+                                me.toolbar.paragraphControls.push(view.buttonAddNew);
+                                me.toolbar.lockControls.push(view.buttonAddNew);
+                            }
+                        }, late = false;
                     if (commentsCtrl.isViewBuilt && !commentsCtrl.isViewBuilt()) {
                         var onBuilt = function (view) {
                             Common.NotificationCenter.off('comments:view:built', onBuilt);
+                            late = true;
                             wireAddNew(view);
                         };
                         Common.NotificationCenter.on('comments:view:built', onBuilt);
