@@ -3950,26 +3950,32 @@ define([
                 //         if ($panel) me.toolbar.addTab(tab, $panel, 6);
                 //     }
                 // }
+                // PKT-0111: Draw and Header & Footer start as empty tab placeholders (same tab order and visibility);
+                // their panels are built after asc_LoadDocument is issued, or on first activation (see buildDeferredTab).
                 var drawtab = application.getController('Common.Controllers.Draw');
                 drawtab.setApi(me.api).setMode(config);
-                $panel = drawtab.createToolbarPanel();
-                if ($panel) {
-                    tab = {action: 'draw', caption: me.toolbar.textTabDraw, extcls: 'canedit', layoutname: 'toolbar-draw', dataHintTitle: 'C'};
-                    me.toolbar.addTab(tab, $panel, 2);
-                    me.toolbar.setVisible('draw', Common.UI.LayoutManager.isElementVisible('toolbar-draw'));
-                    Array.prototype.push.apply(me.toolbar.lockControls, drawtab.getView().getButtons());
-                    Array.prototype.push.apply(me.toolbar.paragraphControls, drawtab.getView().getButtons());
-                }
+                tab = {action: 'draw', caption: me.toolbar.textTabDraw, extcls: 'canedit', layoutname: 'toolbar-draw', dataHintTitle: 'C'};
+                me.addDeferredTab(tab, 2, function () {
+                    var $p = drawtab.createToolbarPanel();
+                    if ($p) {
+                        var btns = drawtab.getView().getButtons();
+                        Array.prototype.push.apply(me.toolbar.lockControls, btns);
+                        Array.prototype.push.apply(me.toolbar.paragraphControls, btns);
+                        return {panel: $p, controls: btns};
+                    }
+                    me.toolbar.setVisible('draw', false);
+                });
+                me.toolbar.setVisible('draw', Common.UI.LayoutManager.isElementVisible('toolbar-draw'));
 
                 tab = {caption: this.toolbar.textTabHeaderFooter, action: 'headerfooter', extcls: config.isEdit ? 'canedit' : '', layoutname: 'toolbar-headerfooter', dataHintTitle: 'D'};
-                var headerfootertab = application.getController('HeaderFooterTab');
-                headerfootertab.setApi(me.api).setConfig({toolbar: me, mode: config});
-                $panel = headerfootertab.createToolbarPanel();
-                if ($panel) {
-                    var visible = Common.UI.LayoutManager.isElementVisible('toolbar-headerfooter');
-                    me.toolbar.addTab(tab, $panel, 12);
-                }
-                Array.prototype.push.apply(me.toolbar.lockControls, headerfootertab.getView('HeaderFooterTab').getButtons());
+                me.addDeferredTab(tab, 12, function () {
+                    var headerfootertab = application.getController('HeaderFooterTab');
+                    headerfootertab.setApi(me.api).setConfig({toolbar: me, mode: config});
+                    var $p = headerfootertab.createToolbarPanel(),
+                        btns = headerfootertab.getView('HeaderFooterTab').getButtons();
+                    Array.prototype.push.apply(me.toolbar.lockControls, btns);
+                    return {panel: $p, controls: btns};
+                });
 
                 if ( config.canProtect) {
                     tab = {action: 'protect', caption: me.toolbar.textTabProtect, layoutname: 'toolbar-protect', dataHintTitle: 'T'};
@@ -4034,21 +4040,92 @@ define([
             config.isEdit && config.canFeatureContentControl && me.onChangeSdtGlobalSettings();
 
             tab = {caption: me.toolbar.textTabView, action: 'view', extcls: config.isEdit ? 'canedit' : '', layoutname: 'toolbar-view', dataHintTitle: 'W'};
-            var viewtab = application.getController('ViewTab');
-            viewtab.setApi(me.api).setConfig({toolbar: me, mode: config});
-            $panel = viewtab.createToolbarPanel();
-            if ($panel) {
-                var visible = Common.UI.LayoutManager.isElementVisible('toolbar-view');
-                me.toolbar.addTab(tab, $panel, 8);
-                me.toolbar.setVisible('view', visible);
-                !editmode && !compactview && visible && Common.Utils.InternalSettings.set('toolbar-active-tab', 'view'); // need to activate later
+            var viewvisible = Common.UI.LayoutManager.isElementVisible('toolbar-view'),
+                buildView = function () {
+                    var viewtab = application.getController('ViewTab');
+                    viewtab.setApi(me.api).setConfig({toolbar: me, mode: config});
+                    var $p = viewtab.createToolbarPanel(),
+                        btns = config.isEdit ? viewtab.getView('ViewTab').getButtons() : [];
+                    config.isEdit && Array.prototype.push.apply(me.toolbar.lockControls, btns);
+                    return {panel: $p, controls: btns};
+                };
+            if (!editmode && !compactview && viewvisible) {
+                // the View tab is the initial active tab of the viewer: build it now
+                var built = buildView();
+                if (built.panel) {
+                    me.toolbar.addTab(tab, built.panel, 8);
+                    me.toolbar.setVisible('view', viewvisible);
+                    Common.Utils.InternalSettings.set('toolbar-active-tab', 'view'); // need to activate later
+                }
+            } else {
+                me.addDeferredTab(tab, 8, buildView);
+                me.toolbar.setVisible('view', viewvisible);
             }
-            config.isEdit && Array.prototype.push.apply(me.toolbar.lockControls, viewtab.getView('ViewTab').getButtons());
+            me.scheduleDeferredTabs();
+        },
+
+        // PKT-0111: hidden toolbar tabs whose panels are built later than onAppShowed.
+        // The tab header and an empty panel are added now, so tab order, visibility and layout names are unchanged.
+        // builder() returns {panel, controls} (or nothing when the tab has no panel); it runs once, from whichever
+        // comes first: the first activation of the tab (tab:active:before), an explicit buildDeferredTab(action)
+        // (plugins/API), the timer scheduled after onAppShowed (asc_LoadDocument is issued synchronously after
+        // app:face, so this moves the work after it), or Toolbar.onAppReady (before the tab views' own app:ready
+        // handlers, which walk controls created by getPanel).
+        addDeferredTab: function (tab, after, builder) {
+            var me = this;
+            if (!me._deferredTabs) {
+                me._deferredTabs = {};
+                me.toolbar.on('tab:active:before', function (action) { me.buildDeferredTab(action); });
+            }
+            var $placeholder = $('<section class="panel" data-tab="' + tab.action + '" id="' + tab.action + '-deferred-panel"></section>');
+            me.toolbar.addTab(tab, $placeholder, after);
+            me._deferredTabs[tab.action] = {builder: builder, $placeholder: $placeholder};
+        },
+
+        scheduleDeferredTabs: function () {
+            var me = this;
+            if (!me._deferredTabs || me._deferredTabsTimer) return;
+            me._deferredTabsTimer = setTimeout(function () {
+                me._deferredTabsTimer = undefined;
+                me.buildDeferredTabs();
+            }, 0);
+        },
+
+        buildDeferredTabs: function () {
+            if (!this._deferredTabs) return;
+            for (var action in this._deferredTabs)
+                this.buildDeferredTab(action);
+        },
+
+        buildDeferredTab: function (action) {
+            var me = this,
+                entry = me._deferredTabs && me._deferredTabs[action];
+            if (!entry) return false;
+            delete me._deferredTabs[action];
+
+            var locks = _.union.apply(_, _.map(me.toolbar.lockControls, function (cmp) { return cmp && cmp.keepState || []; })),
+                result = entry.builder(),
+                $placeholder = entry.$placeholder;
+            if (result && result.panel) {
+                var $panel = $(result.panel);
+                $placeholder.hasClass('active') && $panel.addClass('active');
+                $placeholder.replaceWith($panel);
+                // locks applied to the toolbar before this build (disableOnStart, lostConnect, viewMode, ...)
+                result.controls && result.controls.length && locks.forEach(function (cause) {
+                    Common.Utils.lockControls(cause, true, {array: result.controls});
+                });
+            } else {
+                $placeholder.remove();
+            }
+            me.toolbar.$panels && (me.toolbar.$panels = me.toolbar.$el.find('.box-panels > .panel'));
+            return true;
         },
 
         onAppReady: function (config) {
             var me = this;
             me.appOptions = config;
+            if (me._deferredTabsTimer) { clearTimeout(me._deferredTabsTimer); me._deferredTabsTimer = undefined; }
+            me.buildDeferredTabs(); // PKT-0111: every deferred tab exists before the tab views' app:ready handlers
 
             var lang = config.lang ? config.lang.toLowerCase() : 'en',
                 langPrefix = lang.split(/[\-_]/)[0];
