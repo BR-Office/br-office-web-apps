@@ -4073,12 +4073,25 @@ define([
                         if (btn.cmpEl.closest('#review-changes-panel').length>0)
                             btn.setCaption(me.toolbar.capBtnAddComment);
                     }, this);
-                    if (_comments.buttonAddNew) {
-                        _comments.buttonAddNew.options.lock = [ Common.enumLock.paragraphLock, Common.enumLock.headerLock, Common.enumLock.richEditLock, Common.enumLock.plainEditLock, Common.enumLock.richDelLock, Common.enumLock.plainDelLock,
+                    // PKT-0132: reading buttonAddNew builds a deferred Comments view, so wire it when it is built.
+                    var commentsCtrl = DE.getController('Common.Controllers.Comments'),
+                        btnsComment = this.btnsComment,
+                        wireAddNew = function (view) {
+                            if (!view.buttonAddNew) return;
+                            view.buttonAddNew.options.lock = [ Common.enumLock.paragraphLock, Common.enumLock.headerLock, Common.enumLock.richEditLock, Common.enumLock.plainEditLock, Common.enumLock.richDelLock, Common.enumLock.plainDelLock,
                                                                 Common.enumLock.cantAddQuotedComment, Common.enumLock.imageLock, Common.enumLock.inSpecificForm, Common.enumLock.inImage, Common.enumLock.lostConnect, Common.enumLock.disableOnStart,
                                                                 Common.enumLock.previewReviewMode, Common.enumLock.viewFormMode, Common.enumLock.docLockView, Common.enumLock.docLockForms, Common.enumLock.viewMode ];
-                        this.btnsComment.add(_comments.buttonAddNew);
-                    }
+                            btnsComment[0] && btnsComment[0].keepState && (view.buttonAddNew.keepState = btnsComment[0].keepState.slice());
+                            btnsComment.add(view.buttonAddNew);
+                        };
+                    if (commentsCtrl.isViewBuilt && !commentsCtrl.isViewBuilt()) {
+                        var onBuilt = function (view) {
+                            Common.NotificationCenter.off('comments:view:built', onBuilt);
+                            wireAddNew(view);
+                        };
+                        Common.NotificationCenter.on('comments:view:built', onBuilt);
+                    } else
+                        wireAddNew(_comments);
                 }
                 Array.prototype.push.apply(this.toolbar.paragraphControls, this.btnsComment);
                 Array.prototype.push.apply(this.toolbar.lockControls, this.btnsComment);
