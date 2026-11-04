@@ -4081,9 +4081,12 @@ define([
                             view.buttonAddNew.options.lock = [ Common.enumLock.paragraphLock, Common.enumLock.headerLock, Common.enumLock.richEditLock, Common.enumLock.plainEditLock, Common.enumLock.richDelLock, Common.enumLock.plainDelLock,
                                                                 Common.enumLock.cantAddQuotedComment, Common.enumLock.imageLock, Common.enumLock.inSpecificForm, Common.enumLock.inImage, Common.enumLock.lostConnect, Common.enumLock.disableOnStart,
                                                                 Common.enumLock.previewReviewMode, Common.enumLock.viewFormMode, Common.enumLock.docLockView, Common.enumLock.docLockForms, Common.enumLock.viewMode ];
-                            btnsComment[0] && btnsComment[0].keepState && (view.buttonAddNew.keepState = btnsComment[0].keepState.slice());
-                            btnsComment.add(view.buttonAddNew);
-                            if (late) { // PKT-0132: arrays were filled at app:ready without it
+                            btnsComment.add(view.buttonAddNew); // applies the set's own (stale) disabled flag
+                            if (late) { // PKT-0132: the arrays and locks were set at app:ready without it
+                                if (btnsComment[0]) {
+                                    view.buttonAddNew.keepState = (btnsComment[0].keepState || []).slice();
+                                    view.buttonAddNew.setDisabled(btnsComment[0].isDisabled());
+                                }
                                 me.toolbar.paragraphControls.push(view.buttonAddNew);
                                 me.toolbar.lockControls.push(view.buttonAddNew);
                             }
