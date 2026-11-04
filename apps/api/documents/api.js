@@ -970,11 +970,16 @@
         return '{{PRODUCT_VERSION}}';
     };
 
-    DocsAPI.DocEditor.warmUp = function(id) {
+    // Warms the browser cache for the editor that will open next: `type` is the documentType
+    // ('word', 'cell', 'slide', 'pdf' or 'diagram'); without it the document editor is assumed.
+    // preload.html loads only that editor's bundles, and no fonts (they are loaded on demand).
+    DocsAPI.DocEditor.warmUp = function(id, type) {
         var target = document.getElementById(id);
         if ( target ) {
             var path = extendAppPath({}, getBasePath());
             path += 'api/documents/preload.html';
+            if (typeof type === 'string' && /^(word|cell|slide|pdf|diagram)$/.test(type))
+                path += '?type=' + type;
 
             var iframe = document.createElement("iframe");
             iframe.width = 0;
@@ -1338,7 +1343,8 @@
             var scriptDirectory = document.currentScript.src;
             var cacheWarmupId = /[?&]placeholder=([^&#]*)?/.exec(scriptDirectory);
             if (cacheWarmupId && cacheWarmupId.length ) {
-                DocsAPI.DocEditor.warmUp.call(this, decodeURIComponent(cacheWarmupId[1]));
+                var cacheWarmupType = /[?&]type=([^&#]*)?/.exec(scriptDirectory);
+                DocsAPI.DocEditor.warmUp.call(this, decodeURIComponent(cacheWarmupId[1]), cacheWarmupType ? decodeURIComponent(cacheWarmupType[1]) : undefined);
             }
         }
     })();
