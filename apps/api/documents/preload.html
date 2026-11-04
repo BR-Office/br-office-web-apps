@@ -11,35 +11,45 @@
 <body>
     <script src="@@SRC_ROOT@@/apps/common/main/lib/util/docserviceworker.js?__inline=true"></script>
 
-    <link rel="preload" as="script" href="../../../vendor/requirejs/require.js"/>
-    <script type="text/javascript" src="../../../vendor/jquery/jquery.min.js"></script>
-    <script type="text/javascript" src="../../../vendor/socketio/socket.io.min.js"></script>
-    <script type="text/javascript" src="../../../vendor/xregexp/xregexp-all-min.js"></script>
-    <script type="text/javascript" src="../../../../sdkjs/common/AllFonts.js"></script>
-    <script type="text/javascript" src="../../../../sdkjs/word/sdk-all-min.js"></script>
-    <script type="text/javascript" src="../../../../sdkjs/word/sdk-all.js"></script>
-    <link rel="preload" as="script" href="../../../../sdkjs/cell/sdk-all-min.js"/>
-    <link rel="preload" as="script" href="../../../../sdkjs/cell/sdk-all.js"/>
-    <link rel="preload" as="style" href="../../../../sdkjs/cell/css/main.css"/>
-    <link rel="preload" as="script" href="../../../../sdkjs/slide/sdk-all-min.js"/>
-    <link rel="preload" as="script" href="../../../../sdkjs/slide/sdk-all.js"/>
-    <link rel="preload" as="script" href="../../../../sdkjs/visio/sdk-all-min.js"/>
-    <link rel="preload" as="script" href="../../../../sdkjs/visio/sdk-all.js"/>
-    <link rel="preload" as="script" href="../../../apps/documenteditor/main/app.js"/>
-    <link rel="preload" as="style" href="../../../apps/documenteditor/main/resources/css/app.css"/>
-    <link rel="preload" as="script" href="../../../apps/spreadsheeteditor/main/app.js"/>
-    <link rel="preload" as="style" href="../../../apps/spreadsheeteditor/main/resources/css/app.css"/>
-    <link rel="preload" as="script" href="../../../apps/presentationeditor/main/app.js"/>
-    <link rel="preload" as="style" href="../../../apps/presentationeditor/main/resources/css/app.css"/>
-    <link rel="preload" as="script" href="../../../apps/visioeditor/main/app.js"/>
-    <link rel="preload" as="style" href="../../../apps/visioeditor/main/resources/css/app.css"/>
-    <div id="editor_sdk"></div>
     <script type="text/javascript">
-        window['AscNotLoadAllScript'] = true;
-        var editor = new Asc.asc_docs_api({
-            'id-view'  : 'editor_sdk'
-        });
-        editor.asc_loadFontsFromServer();
+        // Warms the browser cache for the editor that is about to open, and nothing else.
+        //
+        // Before, this page loaded the bundles of all four editors (about 20 MB with the
+        // document editor's sdk-all.js counted once) and the files of seven font families,
+        // and it did so on the same link the document is being opened on. Measured on a
+        // real 11-page document over an emulated home link (50/10 Mbps, 30 ms): the open
+        // took 2.1 s longer with that preloader than with none (7 of 7 pairs, bench in
+        // BR-Office/br-office-server, bench/). Fonts are loaded on demand by the editor for
+        // the document it opens; preloading them here only competes with that download.
+        //
+        // The editor type comes from ?type=word|cell|slide|visio|pdf (DocsAPI.DocEditor.warmUp
+        // passes it); without it the document editor is assumed, the most common case.
+        (function () {
+            var apps = {word: 'documenteditor', cell: 'spreadsheeteditor', slide: 'presentationeditor', visio: 'visioeditor', pdf: 'pdfeditor'};
+            var sdk = {word: 'word', cell: 'cell', slide: 'slide', visio: 'visio', pdf: 'pdf'};
+            var m = /[?&]type=(word|cell|slide|visio|diagram|pdf)(?:&|$)/.exec(window.location.search);
+            var type = m ? (m[1] === 'diagram' ? 'visio' : m[1]) : 'word';
+            var files = [
+                ['script', '../../../vendor/requirejs/require.js'],
+                ['script', '../../../vendor/jquery/jquery.min.js'],
+                ['script', '../../../vendor/socketio/socket.io.min.js'],
+                ['script', '../../../vendor/xregexp/xregexp-all-min.js'],
+                ['script', '../../../../sdkjs/common/AllFonts.js'],
+                ['script', '../../../../sdkjs/' + sdk[type] + '/sdk-all-min.js'],
+                ['script', '../../../../sdkjs/' + sdk[type] + '/sdk-all.js'],
+                ['script', '../../../apps/' + apps[type] + '/main/app.js'],
+                ['style', '../../../apps/' + apps[type] + '/main/resources/css/app.css']
+            ];
+            if (type === 'cell')
+                files.push(['style', '../../../../sdkjs/cell/css/main.css']);
+            for (var i = 0; i < files.length; i++) {
+                var link = document.createElement('link');
+                link.rel = 'preload';
+                link.as = files[i][0];
+                link.href = files[i][1];
+                document.head.appendChild(link);
+            }
+        })();
     </script>
 </body>
 </html>
