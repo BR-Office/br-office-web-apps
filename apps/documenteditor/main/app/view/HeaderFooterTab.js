@@ -246,33 +246,78 @@ define([
                     Common.Utils.injectComponent($host.findById(id), cmp);
                 };
                 var _set = Common.enumLock;
+                var me = this,
+                    toolbarSlots = [];
+                // PKT-0125: the buttons in the Toolbar's Insert-panel slots are built with the Toolbar's deferred
+                // panels (controls:deferred). Ids keep the document order of the slots, Toolbar's first, as before.
+                var _injectButtons = function (sel, id, iconCls, caption, lock, split, menu, toggle, dataHint, dataHintDirection, dataHintOffset, dataHintTitle, action) {
+                    var $tb = me.toolbar.$el.find(sel),
+                        btns = createButtonSet();
+                    btns.setDisabled(true);
+                    var _create = function ($slots, offset) {
+                        return $slots.map(function (index, el) {
+                            var button = new Common.UI.Button({
+                                parentEl: $(el),
+                                id: id + (offset + index),
+                                cls: 'btn-toolbar' + (/x-huge/.test(el.className) ? ' x-huge icon-top' : ''),
+                                iconCls: iconCls,
+                                caption: caption,
+                                split: split || false,
+                                menu: menu || false,
+                                enableToggle: toggle || false,
+                                lock: lock,
+                                disabled: true,
+                                action: action,
+                                dataHint: dataHint,
+                                dataHintDirection: dataHintDirection,
+                                dataHintOffset: dataHintOffset,
+                                dataHintTitle: dataHintTitle
+                            });
+                            btns.add(button);
+                            return button;
+                        }).get();
+                    };
+                    _create($host.find(sel), $tb.length);
+                    toolbarSlots.push(function () {
+                        var inParagraph = _.indexOf(me.paragraphControls, btns[0]) > -1;
+                        _create($tb, 0).forEach(function (button) {
+                            me.lockedControls.push(button);
+                            inParagraph && me.paragraphControls.push(button);
+                            me.toolbar.lockControls.push(button);
+                        });
+                    });
+                    return btns;
+                };
                 _injectComponent('#slot-spin-header-top', this.numHeaderPosition);
                 _injectComponent('#slot-spin-footer-bot', this.numFooterPosition);
-                this.btnsHeaderFooter = Common.Utils.injectButtons($host.find('.btn-slot.slot-headerfooter').add(this.toolbar.$el.find('.btn-slot.slot-headerfooter')), 'tlbtn-headerfooter-', 'toolbar__icon btn-editheader', this.txtHeaderFooter,
+                this.btnsHeaderFooter = _injectButtons('.btn-slot.slot-headerfooter', 'tlbtn-headerfooter-', 'toolbar__icon btn-editheader', this.txtHeaderFooter,
                     [_set.previewReviewMode, _set.viewFormMode, _set.lostConnect, _set.docLockView, _set.docLockForms, _set.viewMode, _set.docLockComments], undefined, true, undefined, '1', 'bottom', 'small');
                 Array.prototype.push.apply(this.lockedControls, this.btnsHeaderFooter);
 
-                this.btnsPageNumber = Common.Utils.injectButtons($host.find('.btn-slot.slot-pagenumbers').add(this.toolbar.$el.find('.btn-slot.slot-pagenumbers')), 'tlbtn-insertpagenum-', 'toolbar__icon btn-pagenum', this.txtPageNumbering,
+                this.btnsPageNumber = _injectButtons('.btn-slot.slot-pagenumbers', 'tlbtn-insertpagenum-', 'toolbar__icon btn-pagenum', this.txtPageNumbering,
                     [_set.previewReviewMode, _set.viewFormMode, _set.lostConnect, _set.docLockView, _set.docLockForms, _set.viewMode, _set.docLockComments], undefined, true, undefined, '1', 'bottom', 'small');
                 Array.prototype.push.apply(this.lockedControls, this.btnsPageNumber);
 
-                this.btnsInsDateTime = Common.Utils.injectButtons($host.find('.btn-slot.slot-insertdatetime').add(this.toolbar.$el.find('.btn-slot.slot-insertdatetime')), 'tlbtn-insertdatetime-', 'toolbar__icon btn-datetime', this.capBtnDateTime,
+                this.btnsInsDateTime = _injectButtons('.btn-slot.slot-insertdatetime', 'tlbtn-insertdatetime-', 'toolbar__icon btn-datetime', this.capBtnDateTime,
                     [_set.paragraphLock, _set.headerLock, _set.richEditLock, _set.plainEditLock, _set.richDelLock, _set.plainDelLock, _set.noParagraphSelected, _set.previewReviewMode,
                             _set.viewFormMode, _set.lostConnect, _set.disableOnStart, _set.docLockViewIns, _set.docLockForms, _set.docLockCommentsIns, _set.viewMode], undefined, undefined, undefined, '1', 'bottom', 'small');
                 Array.prototype.push.apply(this.lockedControls, this.btnsInsDateTime);
                 Array.prototype.push.apply(this.paragraphControls, this.btnsInsDateTime);
 
-                this.btnsInsField = Common.Utils.injectButtons($host.find('.btn-slot.slot-insertfield').add(this.toolbar.$el.find('.btn-slot.slot-insertfield')), 'tlbtn-insertfield-', 'toolbar__icon btn-quick-field', this.capBtnInsField,
+                this.btnsInsField = _injectButtons('.btn-slot.slot-insertfield', 'tlbtn-insertfield-', 'toolbar__icon btn-quick-field', this.capBtnInsField,
                     [_set.paragraphLock, _set.headerLock, _set.richEditLock, _set.plainEditLock, _set.richDelLock, _set.plainDelLock, _set.noParagraphSelected, _set.previewReviewMode,
                             _set.viewFormMode, _set.lostConnect, _set.disableOnStart, _set.docLockViewIns, _set.docLockForms, _set.docLockCommentsIns, _set.viewMode], undefined, undefined, undefined, '1', 'bottom', 'small');
                 Array.prototype.push.apply(this.lockedControls, this.btnsInsField);
                 Array.prototype.push.apply(this.paragraphControls, this.btnsInsField);
 
-                this.btnsInsImage = Common.Utils.injectButtons($host.find('.btn-slot.slot-insertimage').add(this.toolbar.$el.find('.btn-slot.slot-insertimage')), 'tlbtn-insertimage-', 'toolbar__icon btn-insertimage', this.capBtnInsImage,
+                this.btnsInsImage = _injectButtons('.btn-slot.slot-insertimage', 'tlbtn-insertimage-', 'toolbar__icon btn-insertimage', this.capBtnInsImage,
                     [_set.paragraphLock, _set.headerLock, _set.inEquation, _set.controlPlain, _set.richDelLock, _set.plainDelLock,  _set.contentLock,  _set.cantAddImagePara,
                             _set.previewReviewMode, _set.viewFormMode, _set.lostConnect, _set.disableOnStart, _set.docLockViewIns, _set.docLockForms, _set.docLockCommentsIns, _set.viewMode], undefined, true, undefined, '1', 'bottom', 'small', undefined, 'insert-image');
                 Array.prototype.push.apply(this.lockedControls, this.btnsInsImage);
                 Array.prototype.push.apply(this.paragraphControls, this.btnsInsImage);
+
+                var _injectToolbarSlots = function () { toolbarSlots.forEach(function (fn) { fn(); }); };
+                this.toolbar._deferredBuild ? this.toolbar.once('controls:deferred', _injectToolbarSlots) : _injectToolbarSlots();
 
                 this.btnCloseTab && this.btnCloseTab.render($host.find('#slot-btn-close-tab'));
                 this.lblHeaderTop && this.lblHeaderTop.render($host.find('#slot-lbl-header-top'));
