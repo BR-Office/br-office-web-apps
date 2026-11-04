@@ -38,7 +38,9 @@
                 ['script', '../../../../sdkjs/' + sdk[type] + '/sdk-all-min.js'],
                 ['script', '../../../../sdkjs/' + sdk[type] + '/sdk-all.js'],
                 ['script', '../../../apps/' + apps[type] + '/main/app.js'],
-                ['style', '../../../apps/' + apps[type] + '/main/resources/css/app.css']
+                // the editor's index.html loads main/app.css (webpack output); main/resources/css/app.css,
+                // preloaded before, does not exist in the build, so the stylesheet was never warmed
+                ['style', '../../../apps/' + apps[type] + '/main/app.css']
             ];
             if (type === 'cell')
                 files.push(['style', '../../../../sdkjs/cell/css/main.css']);
