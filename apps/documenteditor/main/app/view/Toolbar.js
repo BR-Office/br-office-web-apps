@@ -2093,6 +2093,9 @@ define([
                 me.isCompactView = mode.isCompactView;
                 if ( mode.isEdit ) {
                     me.$el.html(me.rendererComponents(me.$layout));
+                    me.on('tab:active:before', function (tab) { me.renderDeferredPanels(_.isArray(tab) ? tab[0] : tab); });
+                    // asc_LoadDocument is issued synchronously after the toolbar is shown, so this runs after it
+                    setTimeout(function () { me.renderDeferredPanels(); }, 0);
                 } else if (mode.isRestrictedEdit && mode.canFillForms && mode.isPDFForm) {
                     me.$el.html(me.rendererComponentsRestrictedEditForms(me.$layout));
                 } else {
@@ -2171,9 +2174,21 @@ define([
             },
 
             rendererComponents: function (html) {
-                var $host = $(html);
+                var $host = $(html),
+                    me = this,
+                    eager = [this.btnContentControls, this.btnPageColor]; // pickers built on render:after and bound by the controller at launch
+                // PKT-0125: only the Home panel (and the static header) is rendered here; components whose slot is in
+                // another panel (Insert, Layout, ...) are queued and rendered by renderDeferredPanels after
+                // asc_LoadDocument is issued, on the panel's first activation, or at app:ready, whichever comes first.
+                me._deferredPanels = {};
                 var _injectComponent = function (id, cmp) {
-                    Common.Utils.injectComponent($host.findById(id), cmp);
+                    var $slot = $host.findById(id);
+                    if (!cmp || !$slot.length) return;
+                    var tab = $slot.closest('section.panel').attr('data-tab');
+                    if (tab && tab !== 'home' && _.indexOf(eager, cmp) < 0) {
+                        (me._deferredPanels[tab] || (me._deferredPanels[tab] = [])).push([$slot, cmp]);
+                    } else
+                        Common.Utils.injectComponent($slot, cmp);
                 };
 
                 _injectComponent('#slot-btn-text-from-file', this.btnTextFromFile);
@@ -2266,8 +2281,22 @@ define([
                 return $host;
             },
 
+            renderDeferredPanels: function (tab) {
+                var deferred = this._deferredPanels;
+                if (!deferred) return;
+                _.each(tab ? [tab] : _.keys(deferred), function (t) {
+                    var items = deferred[t];
+                    if (!items) return;
+                    delete deferred[t];
+                    items.forEach(function (item) {
+                        Common.Utils.injectComponent(item[0], item[1]);
+                    });
+                });
+            },
+
             onAppReady: function (config) {
                 var me = this;
+                me.renderDeferredPanels();
                 me._isDocReady = true;
                 if (me.cmbFontSize) {
                     var lang = config.lang ? config.lang.toLowerCase() : 'en',
@@ -2676,6 +2705,7 @@ define([
             },
 
             createDelayedElements: function () {
+                this.renderDeferredPanels();
                 if (this.api) {
                     this.mnuNonPrinting.items[0].setChecked(this.api.get_ShowParaMarks(), true);
                     this.mnuNonPrinting.items[1].setChecked(this.api.get_ShowTableEmptyLine(), true);
