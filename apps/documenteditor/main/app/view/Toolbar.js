@@ -677,6 +677,7 @@ define([
                         dataHintOffset: '0, -6'
                     });
                     this.paragraphControls.push(this.btnTextDir);
+                    this.deferControls(['numIndentsLeft','lblIndentsLeft','numIndentsRight','lblIndentsRight','numSpacingBefore','lblSpacingBefore','numSpacingAfter','lblSpacingAfter'], function () { // PKT-0125: built after asc_LoadDocument (buildDeferredControls)
 
                     this.numIndentsLeft = new Common.UI.MetricSpinner({
                         step: .1,
@@ -769,6 +770,7 @@ define([
                         lock: [_set.noParagraphSelected, _set.paragraphLock, _set.headerLock, _set.richEditLock, _set.previewReviewMode, _set.viewFormMode, _set.lostConnect, _set.disableOnStart, _set.docLockViewPara, _set.docLockForms, _set.docLockCommentsPara, _set.fixedForm, _set.viewMode]
                     });
                     this.paragraphControls.push(this.lblSpacingAfter);
+                    });
 
                     this.btnShowHidenChars = new Common.UI.Button({
                         id: 'id-toolbar-btn-hidenchars',
@@ -862,6 +864,7 @@ define([
                     this.mnuNumbersPicker = clone(this.mnuMarkersPicker);
                     this.mnuMultilevelPicker = clone(this.mnuMarkersPicker);
 
+                    this.deferControls(['btnInsertTable','btnInsertChart','btnInsertText','btnInsertTextArt','btnTextFromFile','mnuPageNumberPosPicker','btnBlankPage','btnInsertShape','btnInsertSmartArt','btnInsertEquation','btnInsertSymbol','btnSmartPicker','btnDropCap','mnuDropCapAdvanced','mnuInsertTable'], function () { // PKT-0125: built after asc_LoadDocument (buildDeferredControls)
                     this.btnInsertTable = new Common.UI.Button({
                         id: 'tlbtn-inserttable',
                         cls: 'btn-toolbar x-huge icon-top',
@@ -1106,6 +1109,8 @@ define([
                         dataHintOffset: 'small'
                     });
                     this.paragraphControls.push(this.btnDropCap);
+                    this.mnuInsertTable = this.btnInsertTable.menu;
+                    });
 
                     this.btnContentControls = new Common.UI.Button({
                         id: 'tlbtn-controls',
@@ -1194,6 +1199,7 @@ define([
                     this.toolbarControls.push(this.btnContentControls);
                     // this.paragraphControls.push(this.btnContentControls);
 
+                    this.deferControls(['btnColumns','btnPageOrient','btnPageMargins','btnPageSize','btnLineNumbers','btnHyphenation','mnuPageSize'], function () { // PKT-0125: built after asc_LoadDocument (buildDeferredControls)
                     this.btnColumns = new Common.UI.Button({
                         id: 'tlbtn-columns',
                         cls: 'btn-toolbar x-huge icon-top',
@@ -1572,6 +1578,8 @@ define([
                         dataHintOffset: 'small'
                     });
                     this.toolbarControls.push(this.btnHyphenation);
+                    this.mnuPageSize = this.btnPageSize.menu;
+                    });
 
                     this.btnClearStyle = new Common.UI.Button({
                         id: 'id-toolbar-btn-clearstyle',
@@ -1599,6 +1607,7 @@ define([
                         label: this.tipCopyStyle
                     };
 
+                    this.deferControls(['btnColorSchemas','btnImgAlign','btnImgGroup','btnShapesMerge','btnImgForward','btnImgBackward','btnImgWrapping','btnWatermark','mnuColorSchema'], function () { // PKT-0125: built after asc_LoadDocument (buildDeferredControls)
                     this.btnColorSchemas = new Common.UI.Button({
                         id: 'id-toolbar-btn-colorschemas',
                         cls: 'btn-toolbar x-huge icon-top',
@@ -1712,6 +1721,10 @@ define([
                         dataHintDirection: 'bottom',
                         dataHintOffset: 'small'
                     });
+                    this.mnuColorSchema = this.btnColorSchemas.menu;
+                    me.toolbarControls.push(me.btnImgAlign,
+                        me.btnImgGroup, me.btnImgForward, me.btnImgBackward, me.btnImgWrapping, me.btnWatermark, me.btnShapesMerge);
+                    });
 
                     me.btnPageColor = new Common.UI.ButtonColored({
                         cls: 'btn-toolbar x-huge icon-top',
@@ -1734,8 +1747,7 @@ define([
                         dataHintOffset: 'small'
                     });
 
-                    me.toolbarControls.push(me.btnImgAlign,
-                        me.btnImgGroup, me.btnImgForward, me.btnImgBackward, me.btnImgWrapping, me.btnWatermark, me.btnPageColor, me.btnShapesMerge);
+                    me.toolbarControls.push(me.btnPageColor);
 
                     //
                     // Menus
@@ -1743,9 +1755,7 @@ define([
 
                     this.mnuLineSpace = this.btnLineSpace.menu;
                     this.mnuNonPrinting = this.btnShowHidenChars.menu;
-                    this.mnuInsertTable = this.btnInsertTable.menu;
-                    this.mnuPageSize = this.btnPageSize.menu;
-                    this.mnuColorSchema = this.btnColorSchemas.menu;
+                    // PKT-0125: mnuInsertTable, mnuPageSize and mnuColorSchema are set in their deferred blocks
                     this.mnuChangeCase = this.btnChangeCase.menu;
 
                     this.cmbFontSize = new Common.UI.ComboBox({
@@ -2093,6 +2103,11 @@ define([
                 me.isCompactView = mode.isCompactView;
                 if ( mode.isEdit ) {
                     me.$el.html(me.rendererComponents(me.$layout));
+                    me.on('tab:active:before', function (tab) { // render activates Home first: that must not build the other panels
+                        (_.isArray(tab) ? tab[0] : tab) !== 'home' && me.renderDeferredPanels();
+                    });
+                    // asc_LoadDocument is issued synchronously after the toolbar is shown, so this runs after it
+                    setTimeout(function () { me.renderDeferredPanels(); }, 0);
                 } else if (mode.isRestrictedEdit && mode.canFillForms && mode.isPDFForm) {
                     me.$el.html(me.rendererComponentsRestrictedEditForms(me.$layout));
                 } else {
@@ -2118,7 +2133,7 @@ define([
 
                     me.setTab('home');
 
-                    me.onUpdateLastCustomMargins();
+                    me._deferredBuild ? me.deferControls([], me.onUpdateLastCustomMargins) : me.onUpdateLastCustomMargins();  // reads btnPageMargins
                     Common.NotificationCenter.on('margins:update', _.bind(me.onUpdateLastCustomMargins, me));
                     Common.NotificationCenter.on('desktop:window', _.bind(me.onDesktopWindow, me));
                 }
@@ -2171,12 +2186,25 @@ define([
             },
 
             rendererComponents: function (html) {
-                var $host = $(html);
+                var $host = $(html),
+                    me = this;
+                // PKT-0125: components of the Insert and Layout panels are constructed and rendered by
+                // renderDeferredPanels (after asc_LoadDocument is issued, on first tab activation, or at app:ready,
+                // whichever comes first). They are passed here by name; a name still deferred is queued.
+                me._deferredSlots = [];
                 var _injectComponent = function (id, cmp) {
-                    Common.Utils.injectComponent($host.findById(id), cmp);
+                    var $slot = $host.findById(id);
+                    if (_.isString(cmp)) {
+                        if (me._deferredBuild && me._deferredNames[cmp]) {
+                            me._deferredSlots.push([$slot, cmp]);
+                            return;
+                        }
+                        cmp = me[cmp];
+                    }
+                    Common.Utils.injectComponent($slot, cmp);
                 };
 
-                _injectComponent('#slot-btn-text-from-file', this.btnTextFromFile);
+                _injectComponent('#slot-btn-text-from-file', 'btnTextFromFile');
                 _injectComponent('#slot-field-fontname', this.cmbFontName);
                 _injectComponent('#slot-field-fontsize', this.cmbFontSize);
                 _injectComponent('#slot-btn-print', this.btnPrint);
@@ -2211,63 +2239,125 @@ define([
                 _injectComponent('#slot-btn-markers', this.btnMarkers);
                 _injectComponent('#slot-btn-numbering', this.btnNumbers);
                 _injectComponent('#slot-btn-multilevels', this.btnMultilevels);
-                _injectComponent('#slot-btn-instable', this.btnInsertTable);
-                _injectComponent('#slot-btn-inschart', this.btnInsertChart);
-                _injectComponent('#slot-btn-instext', this.btnInsertText);
-                _injectComponent('#slot-btn-instextart', this.btnInsertTextArt);
-                _injectComponent('#slot-btn-dropcap', this.btnDropCap);
+                _injectComponent('#slot-btn-instable', 'btnInsertTable');
+                _injectComponent('#slot-btn-inschart', 'btnInsertChart');
+                _injectComponent('#slot-btn-instext', 'btnInsertText');
+                _injectComponent('#slot-btn-instextart', 'btnInsertTextArt');
+                _injectComponent('#slot-btn-dropcap', 'btnDropCap');
                 _injectComponent('#slot-btn-controls', this.btnContentControls);
-                _injectComponent('#slot-btn-columns', this.btnColumns);
-                _injectComponent('#slot-btn-line-numbers', this.btnLineNumbers);
-                _injectComponent('#slot-btn-blankpage', this.btnBlankPage);
-                _injectComponent('#slot-btn-insshape', this.btnInsertShape);
-                _injectComponent('#slot-btn-inssmartart', this.btnInsertSmartArt);
-                _injectComponent('#slot-btn-insequation', this.btnInsertEquation);
-                _injectComponent('#slot-btn-inssymbol', this.btnInsertSymbol);
+                _injectComponent('#slot-btn-columns', 'btnColumns');
+                _injectComponent('#slot-btn-line-numbers', 'btnLineNumbers');
+                _injectComponent('#slot-btn-blankpage', 'btnBlankPage');
+                _injectComponent('#slot-btn-insshape', 'btnInsertShape');
+                _injectComponent('#slot-btn-inssmartart', 'btnInsertSmartArt');
+                _injectComponent('#slot-btn-insequation', 'btnInsertEquation');
+                _injectComponent('#slot-btn-inssymbol', 'btnInsertSymbol');
 
-                _injectComponent('#slot-btn-smartpicker', this.btnSmartPicker);
+                _injectComponent('#slot-btn-smartpicker', 'btnSmartPicker');
 
-                _injectComponent('#slot-btn-pageorient', this.btnPageOrient);
-                _injectComponent('#slot-btn-pagemargins', this.btnPageMargins);
-                _injectComponent('#slot-btn-pagesize', this.btnPageSize);
+                _injectComponent('#slot-btn-pageorient', 'btnPageOrient');
+                _injectComponent('#slot-btn-pagemargins', 'btnPageMargins');
+                _injectComponent('#slot-btn-pagesize', 'btnPageSize');
                 _injectComponent('#slot-btn-clearstyle', this.btnClearStyle);
                 _injectComponent('#slot-btn-copystyle', this.btnCopyStyle);
-                _injectComponent('#slot-btn-colorschemas', this.btnColorSchemas);
+                _injectComponent('#slot-btn-colorschemas', 'btnColorSchemas');
                 _injectComponent('#slot-btn-paracolor', this.btnParagraphColor);
                 _injectComponent('#slot-btn-borders', this.btnBorders);
                 _injectComponent('#slot-field-styles', this.listStyles);
-                _injectComponent('#slot-img-align', this.btnImgAlign);
-                _injectComponent('#slot-img-group', this.btnImgGroup); 
-                _injectComponent('#slot-img-movefrwd', this.btnImgForward);
-                _injectComponent('#slot-img-movebkwd', this.btnImgBackward);
-                _injectComponent('#slot-img-wrapping', this.btnImgWrapping);
-                _injectComponent('#slot-shapes-merge', this.btnShapesMerge);
-                _injectComponent('#slot-btn-watermark', this.btnWatermark);
-                _injectComponent('#slot-btn-hyphenation', this.btnHyphenation);
-                _injectComponent('#slot-spin-ind-left', this.numIndentsLeft);
-                _injectComponent('#slot-spin-ind-right', this.numIndentsRight);
-                _injectComponent('#slot-lbl-ind-left', this.lblIndentsLeft);
-                _injectComponent('#slot-lbl-ind-right', this.lblIndentsRight);
-                _injectComponent('#slot-spin-space-before', this.numSpacingBefore);
-                _injectComponent('#slot-spin-space-after', this.numSpacingAfter);
-                _injectComponent('#slot-lbl-space-before', this.lblSpacingBefore);
-                _injectComponent('#slot-lbl-space-after', this.lblSpacingAfter);
+                _injectComponent('#slot-img-align', 'btnImgAlign');
+                _injectComponent('#slot-img-group', 'btnImgGroup'); 
+                _injectComponent('#slot-img-movefrwd', 'btnImgForward');
+                _injectComponent('#slot-img-movebkwd', 'btnImgBackward');
+                _injectComponent('#slot-img-wrapping', 'btnImgWrapping');
+                _injectComponent('#slot-shapes-merge', 'btnShapesMerge');
+                _injectComponent('#slot-btn-watermark', 'btnWatermark');
+                _injectComponent('#slot-btn-hyphenation', 'btnHyphenation');
+                _injectComponent('#slot-spin-ind-left', 'numIndentsLeft');
+                _injectComponent('#slot-spin-ind-right', 'numIndentsRight');
+                _injectComponent('#slot-lbl-ind-left', 'lblIndentsLeft');
+                _injectComponent('#slot-lbl-ind-right', 'lblIndentsRight');
+                _injectComponent('#slot-spin-space-before', 'numSpacingBefore');
+                _injectComponent('#slot-spin-space-after', 'numSpacingAfter');
+                _injectComponent('#slot-lbl-space-before', 'lblSpacingBefore');
+                _injectComponent('#slot-lbl-space-after', 'lblSpacingAfter');
                 _injectComponent('#slot-btn-pagecolor', this.btnPageColor);
 
-                this.btnsPageBreak = Common.Utils.injectButtons($host.find('.btn-slot.btn-pagebreak'), '', 'toolbar__icon btn-pagebreak', this.capBtnInsPagebreak,
+                var $pageBreakSlots = $host.find('.btn-slot.btn-pagebreak');
+                me.deferControls([], function () {
+                this.btnsPageBreak = Common.Utils.injectButtons($pageBreakSlots, '', 'toolbar__icon btn-pagebreak', this.capBtnInsPagebreak,
                     [Common.enumLock.paragraphLock, Common.enumLock.headerLock, Common.enumLock.richEditLock, Common.enumLock.plainEditLock, Common.enumLock.inEquation, Common.enumLock.richDelLock,
                         Common.enumLock.plainDelLock, Common.enumLock.inHeader, Common.enumLock.inFootnote, Common.enumLock.cantPageBreak, Common.enumLock.previewReviewMode,
                         Common.enumLock.viewFormMode, Common.enumLock.lostConnect, Common.enumLock.disableOnStart, Common.enumLock.docLockViewIns, Common.enumLock.docLockForms, Common.enumLock.docLockCommentsIns, Common.enumLock.viewMode],
                         true, true, undefined, '1', 'bottom', 'small', undefined, 'page-break');
                 Array.prototype.push.apply(this.paragraphControls, this.btnsPageBreak);
-                Array.prototype.push.apply(this.lockControls, this.btnsPageBreak);
-                Common.UI.LayoutManager.addControls(this.btnsPageBreak);
+                });
                 this.btnPrint.menu && this.btnPrint.$el.addClass('split');
                 return $host;
             },
 
+            deferControls: function (names, factory) {
+                // PKT-0125: queue a construction block for buildDeferredControls; until then each name is a getter
+                // that builds every deferred block on first access, so early readers still get the component.
+                var me = this;
+                me._deferredBuild = me._deferredBuild || [];
+                me._deferredNames = me._deferredNames || {};
+                me._lockLog = me._lockLog || [];
+                me._deferredBuild.push(factory);
+                names.forEach(function (name) {
+                    me._deferredNames[name] = true;
+                    Object.defineProperty(me, name, {
+                        configurable: true, enumerable: true,
+                        get: function () {
+                            me.buildDeferredControls();
+                            var d = Object.getOwnPropertyDescriptor(me, name);
+                            return d && d.get ? undefined : me[name];
+                        },
+                        set: function (value) {
+                            Object.defineProperty(me, name, {value: value, writable: true, configurable: true, enumerable: true});
+                        }
+                    });
+                });
+            },
+
+            buildDeferredControls: function () {
+                var me = this,
+                    factories = me._deferredBuild;
+                if (!factories) return;
+                me._deferredBuild = null;
+                var groups = [me.paragraphControls, me.toolbarControls],
+                    sizes = groups.map(function (arr) { return arr.length; }),
+                    lockSize = me.lockControls.length;
+                factories.forEach(function (factory) { factory.call(me); });
+                var added = _.uniq(_.flatten(groups.map(function (arr, i) { return arr.slice(sizes[i]); }), true));
+                Common.UI.LayoutManager.addControls(added);
+                Array.prototype.push.apply(me.lockControls, _.difference(added, me.lockControls));
+                me.trigger('controls:deferred', me);   // views that inject into Insert slots (HeaderFooterTab) push to lockControls
+                added = _.union(added, me.lockControls.slice(lockSize));
+                // replay the locks set on the whole toolbar before these controls existed
+                var log = me._lockLog;
+                me._lockLog = null;
+                log.forEach(function (entry) {
+                    var opts = entry[2] || {},
+                        arr = opts.array,
+                        controls = !arr || arr === me.lockControls ? added : _.intersection(added, arr);
+                    controls.length && Common.Utils.lockControls(entry[0], entry[1], _.extend({}, opts, {array: controls, merge: false}));
+                });
+                me._deferredNames = {};
+            },
+
+            renderDeferredPanels: function () {
+                this.buildDeferredControls();
+                var slots = this._deferredSlots, me = this;
+                if (!slots || !slots.length) return;
+                this._deferredSlots = [];
+                slots.forEach(function (item) {
+                    Common.Utils.injectComponent(item[0], me[item[1]]);
+                });
+            },
+
             onAppReady: function (config) {
                 var me = this;
+                me.renderDeferredPanels();
                 me._isDocReady = true;
                 if (me.cmbFontSize) {
                     var lang = config.lang ? config.lang.toLowerCase() : 'en',
@@ -2676,6 +2766,7 @@ define([
             },
 
             createDelayedElements: function () {
+                this.renderDeferredPanels();
                 if (this.api) {
                     this.mnuNonPrinting.items[0].setChecked(this.api.get_ShowParaMarks(), true);
                     this.mnuNonPrinting.items[1].setChecked(this.api.get_ShowTableEmptyLine(), true);
@@ -3710,6 +3801,7 @@ define([
             },
 
             lockToolbar: function (causes, lock, opts) {
+                this._lockLog && this._lockLog.push([causes, lock, opts]);
                 Common.Utils.lockControls(causes, lock, opts, this.lockControls);
             }
         }
