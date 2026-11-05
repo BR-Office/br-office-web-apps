@@ -988,6 +988,9 @@
             iframe.src = path;
 
             target.parentNode && target.parentNode.replaceChild(iframe, target);
+            // Remembered so that an editor created on the same page for another type can drop it (see the
+            // constructor): warming the document editor while a spreadsheet opens costs about 3 MB on the same link.
+            DocsAPI.DocEditor._warmUp = { iframe: iframe, type: (typeof type === 'string' && type) ? type.toLowerCase() : 'word' };
         }
     }
 
@@ -1168,6 +1171,14 @@
         if (!(config.editorConfig && config.editorConfig.shardkey && config.document && config.editorConfig.shardkey!==config.document.key))
             path = extendAppPath(config, path);
         path += appMap[appType];
+
+        // A warm-up started on this page for another editor (warmUp without a type assumes the document editor)
+        // would download that editor's bundles next to this one's: stop it.
+        var warm = DocsAPI.DocEditor._warmUp;
+        if (warm && warm.iframe && warm.type !== (appType === 'common' ? 'word' : appType) && warm.type !== (appType === 'diagram' ? 'visio' : appType)) {
+            warm.iframe.parentNode && warm.iframe.parentNode.removeChild(warm.iframe);
+            DocsAPI.DocEditor._warmUp = null;
+        }
 
         const path_type = corrected_type === "mobile" ? "mobile" :
                           corrected_type === "embedded" ? (fillForms && isForm ? "forms" : "embed") : "main";
