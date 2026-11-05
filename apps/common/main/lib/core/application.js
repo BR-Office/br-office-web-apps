@@ -331,7 +331,11 @@ function(_){
          * Getter that will return the reference to the view instance
          */
         getView: function(name) {
-            return this._viewsCache[name];
+            // A controller that never created a view has no cache yet (createView builds it lazily),
+            // so asking it for a view is a miss, not an error: the Toolbar does ask the FormsTab
+            // controller for its view on every PDF opened in the document editor, where that tab
+            // only exists in the fill-forms mode.
+            return this._viewsCache ? this._viewsCache[name] : undefined;
         },
 
         /**

@@ -4335,8 +4335,8 @@ define([
             this._state.customPluginData = null;
             
             if(this.mode.isPDFForm) {
-                const formsTabView = this.getApplication().getController('FormsTab').getView();
-                if(formsTabView && formsTabView.btnSignField && !formsTabView.btnSignField.isDisabled() && 
+                const formsTabView = this.getFormsTabView();
+                if(formsTabView && formsTabView.btnSignField && !formsTabView.btnSignField.isDisabled() &&
                     this.toolbar.isTabActive('forms')
                 ) {
                     Common.UI.TooltipManager.showTip('signature');
@@ -4346,11 +4346,19 @@ define([
             Common.UI.TooltipManager.showTip('multipageViewStatusbar');
         },
 
+        // The Forms tab exists only when the document is filled as a form (restricted edit with
+        // canFillForms); a PDF opened for editing has isPDFForm set and no such tab, so the
+        // controller may hold no view.
+        getFormsTabView: function() {
+            const controller = this.getApplication().getController('FormsTab');
+            return controller ? controller.getView() : undefined;
+        },
+
         onActiveTab: function(tab) {
             if(tab !== 'forms') {
                 Common.UI.TooltipManager.closeTip('signature');
             } else {
-                const formsTabView = this.getApplication().getController('FormsTab').getView();
+                const formsTabView = this.getFormsTabView();
                 if(formsTabView && formsTabView.btnSignField && !formsTabView.btnSignField.isDisabled()) {
                     setTimeout(() => {
                         Common.UI.TooltipManager.showTip('signature') 
